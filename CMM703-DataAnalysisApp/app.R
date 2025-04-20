@@ -66,13 +66,22 @@ visualize_variables <- function(df) {
   }
   return(plots)
 }
+
+
+# ---------------------------------------------
+
 predictive_model <- function(df, response) {
   df <- na.omit(df)
   
-  # Remove high-cardinality identifier variables
-  df <- df[, !names(df) %in% c("competitorname", "ip_address")]
+  # Drop high-cardinality or identifier columns if present
+  drop_cols <- intersect(names(df), c("competitorname", "ip_address"))
+  df <- df[, !names(df) %in% drop_cols]
   
-  # Determine response type
+  if (nrow(df) < 5) {
+    stop("Dataset too small after filtering. Cannot proceed with modelling.")
+  }
+  
+  # Check if response is binary or continuous
   if (is.numeric(df[[response]]) && length(unique(df[[response]])) > 2) {
     is_binary <- FALSE
   } else {
@@ -103,8 +112,6 @@ predictive_model <- function(df, response) {
   print(summary(model))
 }
 
-
-# ---------------------------------------------
 
 
 # ---------- [ Helper Function ] ---------- #
@@ -184,12 +191,18 @@ server <- function(input, output, session) {
     })
     
     # Predictive model
-    if (!is.null(response_var)) {
-      model_summary <- capture.output(predictive_model(data, response_var))
-      output$model_output <- renderText({ paste(model_summary, collapse = "\n") })
-    } else {
-      output$model_output <- renderText("No response variable selected.")
-    }
+    output$model_output <- renderText({
+      if (!is.null(response_var)) {
+        tryCatch({
+          model_summary <- capture.output(predictive_model(data, response_var))
+          paste(model_summary, collapse = "\n")
+        }, error = function(e) {
+          paste("Model error:", e$message)
+        })
+      } else {
+        "No response variable selected."
+      }
+    })
   })
 }
 
