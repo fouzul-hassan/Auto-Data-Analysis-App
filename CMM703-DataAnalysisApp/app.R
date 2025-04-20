@@ -3,7 +3,23 @@ library(ggplot2)
 library(caret)
 
 # ---------- [ Helper Function ] ---------- #
+identify_variable_types <- function(df) {
+  qualitative <- names(df)[sapply(df, is.factor) | sapply(df, is.character)]
+  quantitative <- names(df)[sapply(df, is.numeric)]
+  list(Qualitative = qualitative, Quantitative = quantitative)
+}
+# ---------------------------------------------
 
+
+
+# ---------------------------------------------
+
+
+# ---------------------------------------------
+
+
+
+# ---------------------------------------------
 
 
 # ---------- [ Helper Function ] ---------- #
