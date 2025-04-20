@@ -1,6 +1,7 @@
 library(shiny)
 library(ggplot2)
 library(caret)
+library(shinythemes)
 
 # ---------- [ Helper Function ] ---------- #
 identify_variable_types <- function(df) {
@@ -118,24 +119,43 @@ predictive_model <- function(df, response) {
 
 
 
-#
-# Define UI
+# Defining the UI
 ui <- fluidPage(
-  titlePanel("Auto Analysis Dashboard"),
+  theme = shinytheme("flatly"),  # You can try: cerulean, journal, sandstone etc.
+  
+  titlePanel("🧠 Auto Analysis Dashboard"),
+  
   sidebarLayout(
     sidebarPanel(
-      fileInput("file", "Upload CSV file", accept = ".csv"),
+      fileInput("file", "📂 Upload CSV file", accept = ".csv"),
       uiOutput("response_selector"),
-      selectInput("outlier_method", "Outlier Detection Method", 
+      selectInput("outlier_method", "📊 Outlier Detection Method", 
                   choices = c("IQR", "zscore"), selected = "IQR"),
-      actionButton("analyze", "Run Analysis")
+      actionButton("analyze", "🚀 Run Analysis"),
+      actionButton("fix_types", "🛠 Fix Variable Types"),
+      width = 3
     ),
+    
     mainPanel(
+      tags$h4("📌 Variable Types"),
       verbatimTextOutput("var_types"),
+      tags$hr(),
+      
+      tags$h4("📌 Missing Values (per column)"),
       verbatimTextOutput("missing_summary"),
+      tags$hr(),
+      
+      tags$h4("📌 Univariate Outliers (Index positions)"),
       verbatimTextOutput("outliers"),
+      tags$hr(),
+      
+      tags$h4("📌 Variable-wise Visualizations"),
       uiOutput("plots_ui"),
-      verbatimTextOutput("model_output")
+      tags$hr(),
+      
+      tags$h4("📌 Predictive Model Summary"),
+      verbatimTextOutput("model_output"),
+      width = 9
     )
   )
 )
@@ -158,6 +178,44 @@ server <- function(input, output, session) {
     selectInput("response", "Select Response Variable (optional)", 
                 choices = c("None", names(df())), selected = "None")
   })
+  
+  observeEvent(input$fix_types, {
+    req(df())
+    
+    showModal(modalDialog(
+      title = "🔧 Convert Variable Type",
+      selectInput("var_to_convert", "Select Variable", choices = names(df())),
+      selectInput("new_type", "Convert to Type", choices = c("numeric", "factor", "character")),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("confirm_conversion", "Convert")
+      )
+    ))
+  })
+  
+  # ✅ Place this block immediately after the one above
+  observeEvent(input$confirm_conversion, {
+    removeModal()
+    current_df <- df()
+    var <- input$var_to_convert
+    type <- input$new_type
+    
+    # Apply conversion
+    tryCatch({
+      if (type == "numeric") {
+        current_df[[var]] <- as.numeric(as.character(current_df[[var]]))
+      } else if (type == "factor") {
+        current_df[[var]] <- as.factor(current_df[[var]])
+      } else if (type == "character") {
+        current_df[[var]] <- as.character(current_df[[var]])
+      }
+      df(current_df)  # Save back to reactiveVal
+      showNotification(paste("✅", var, "converted to", type), type = "message")
+    }, error = function(e) {
+      showNotification(paste("⚠️ Error converting variable:", e$message), type = "error")
+    })
+  })
+
   
   observeEvent(input$analyze, {
     req(df())
