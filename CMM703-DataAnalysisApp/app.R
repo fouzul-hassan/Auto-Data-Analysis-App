@@ -9,14 +9,99 @@ identify_variable_types <- function(df) {
   list(Qualitative = qualitative, Quantitative = quantitative)
 }
 # ---------------------------------------------
-
+impute_missing_values <- function(df) {
+  mode_function <- function(x) {
+    ux <- unique(x)
+    ux[which.max(tabulate(match(x, ux)))]
+  }
+  
+  for (col in names(df)) {
+    if (any(is.na(df[[col]]))) {
+      if (is.numeric(df[[col]])) {
+        df[[col]][is.na(df[[col]])] <- mean(df[[col]], na.rm = TRUE)
+      } else {
+        df[[col]][is.na(df[[col]])] <- mode_function(df[[col]])
+      }
+    }
+  }
+  return(df)
+}
 
 
 # ---------------------------------------------
-
+detect_outliers <- function(df, method = "IQR") {
+  outlier_list <- list()
+  for (col in names(df)) {
+    if (is.numeric(df[[col]])) {
+      if (method == "IQR") {
+        Q1 <- quantile(df[[col]], 0.25)
+        Q3 <- quantile(df[[col]], 0.75)
+        IQR_val <- Q3 - Q1
+        outliers <- df[[col]] < (Q1 - 1.5 * IQR_val) | df[[col]] > (Q3 + 1.5 * IQR_val)
+      } else if (method == "zscore") {
+        z <- scale(df[[col]])
+        outliers <- abs(z) > 3
+      }
+      outlier_list[[col]] <- which(outliers)
+    }
+  }
+  return(outlier_list)
+}
 
 # ---------------------------------------------
-
+visualize_variables <- function(df) {
+  library(ggplot2)
+  plots <- list()
+  for (col in names(df)) {
+    if (is.numeric(df[[col]])) {
+      p <- ggplot(df, aes_string(x = col)) +
+        geom_histogram(fill = "steelblue", bins = 30) +
+        ggtitle(paste("Histogram of", col))
+    } else {
+      p <- ggplot(df, aes_string(x = col)) +
+        geom_bar(fill = "tomato") +
+        ggtitle(paste("Bar plot of", col))
+    }
+    plots[[col]] <- p
+  }
+  return(plots)
+}
+predictive_model <- function(df, response) {
+  df <- na.omit(df)
+  
+  # Remove high-cardinality identifier variables
+  df <- df[, !names(df) %in% c("competitorname", "ip_address")]
+  
+  # Determine response type
+  if (is.numeric(df[[response]]) && length(unique(df[[response]])) > 2) {
+    is_binary <- FALSE
+  } else {
+    df[[response]] <- as.factor(df[[response]])
+    is_binary <- TRUE
+  }
+  
+  formula <- as.formula(paste(response, "~ ."))
+  
+  set.seed(123)
+  trainIndex <- createDataPartition(df[[response]], p = .8, list = FALSE)
+  train <- df[trainIndex, ]
+  test <- df[-trainIndex, ]
+  
+  if (is_binary) {
+    model <- glm(formula, data = train, family = "binomial")
+    pred <- predict(model, test, type = "response")
+    pred_class <- ifelse(pred > 0.5, 1, 0)
+    acc <- mean(pred_class == as.numeric(as.character(test[[response]])))
+    print(paste("Accuracy:", round(acc, 3)))
+  } else {
+    model <- lm(formula, data = train)
+    pred <- predict(model, test)
+    rmse <- sqrt(mean((test[[response]] - pred)^2))
+    print(paste("RMSE:", round(rmse, 3)))
+  }
+  
+  print(summary(model))
+}
 
 
 # ---------------------------------------------
